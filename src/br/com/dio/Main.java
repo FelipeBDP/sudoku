@@ -1,10 +1,8 @@
 package br.com.dio;
 
-import br.com.dio.model.Board;
 import br.com.dio.model.Space;
+import br.com.dio.service.BoardService;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.stream.Stream;
@@ -18,18 +16,22 @@ public class Main {
 
     private final static Scanner scanner = new Scanner(System.in);
 
-    private static Board board;
+    private static BoardService boardService;
 
     private final static int BOARD_LIMIT = 9;
 
     public static void main(String[] args) {
-        final var positions = Stream.of(args)
+        String[] configSource = args.length > 0 ? args : 
+                System.getenv().getOrDefault("SUDOKU_CONFIG", "").split(" ");
+        
+        final var positions = Stream.of(configSource)
+                .filter(s -> s.contains(";"))
                 .collect(toMap(
                         k -> k.split(";")[0],
                         v -> v.split(";")[1]
                 ));
         var option = -1;
-        while (true){
+        while (true) {
             System.out.println("Selecione uma das opções a seguir");
             System.out.println("1 - Iniciar um novo Jogo");
             System.out.println("2 - Colocar um novo número");
@@ -42,7 +44,7 @@ public class Main {
 
             option = scanner.nextInt();
 
-            switch (option){
+            switch (option) {
                 case 1 -> startGame(positions);
                 case 2 -> inputNumber();
                 case 3 -> removeNumber();
@@ -57,30 +59,17 @@ public class Main {
     }
 
     private static void startGame(final Map<String, String> positions) {
-        if (nonNull(board)){
+        if (nonNull(boardService)) {
             System.out.println("O jogo já foi iniciado");
             return;
         }
 
-        List<List<Space>> spaces = new ArrayList<>();
-        for (int i = 0; i < BOARD_LIMIT; i++) {
-            spaces.add(new ArrayList<>());
-            for (int j = 0; j < BOARD_LIMIT; j++) {
-                var positionConfig = positions.get("%s,%s".formatted(i, j));
-                var expected = Integer.parseInt(positionConfig.split(",")[0]);
-                var fixed = Boolean.parseBoolean(positionConfig.split(",")[1]);
-                var currentSpace = new Space(expected, fixed);
-                spaces.get(i).add(currentSpace);
-            }
-        }
-
-        board = new Board(spaces);
+        boardService = new BoardService(positions);
         System.out.println("O jogo está pronto para começar");
     }
 
-
     private static void inputNumber() {
-        if (isNull(board)){
+        if (isNull(boardService)) {
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
@@ -91,13 +80,13 @@ public class Main {
         var row = runUntilGetValidNumber(0, 8);
         System.out.printf("Informe o número que vai entrar na posição [%s,%s]\n", col, row);
         var value = runUntilGetValidNumber(1, 9);
-        if (!board.changeValue(col, row, value)){
+        if (!boardService.changeValue(col, row, value)) {
             System.out.printf("A posição [%s,%s] tem um valor fixo\n", col, row);
         }
     }
 
     private static void removeNumber() {
-        if (isNull(board)){
+        if (isNull(boardService)) {
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
@@ -106,13 +95,13 @@ public class Main {
         var col = runUntilGetValidNumber(0, 8);
         System.out.println("Informe a linha que em que o número será inserido");
         var row = runUntilGetValidNumber(0, 8);
-        if (!board.clearValue(col, row)){
+        if (!boardService.clearValue(col, row)) {
             System.out.printf("A posição [%s,%s] tem um valor fixo\n", col, row);
         }
     }
 
     private static void showCurrentGame() {
-        if (isNull(board)){
+        if (isNull(boardService)) {
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
@@ -120,8 +109,8 @@ public class Main {
         var args = new Object[81];
         var argPos = 0;
         for (int i = 0; i < BOARD_LIMIT; i++) {
-            for (var col: board.getSpaces()){
-                args[argPos ++] = " " + ((isNull(col.get(i).getActual())) ? " " : col.get(i).getActual());
+            for (var col : boardService.getSpaces()) {
+                args[argPos++] = " " + ((isNull(col.get(i).getActual())) ? " " : col.get(i).getActual());
             }
         }
         System.out.println("Seu jogo se encontra da seguinte forma");
@@ -129,13 +118,13 @@ public class Main {
     }
 
     private static void showGameStatus() {
-        if (isNull(board)){
+        if (isNull(boardService)) {
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
 
-        System.out.printf("O jogo atualmente se encontra no status %s\n", board.getStatus().getLabel());
-        if(board.hasErrors()){
+        System.out.printf("O jogo atualmente se encontra no status %s\n", boardService.getStatus().getLabel());
+        if (boardService.hasErrors()) {
             System.out.println("O jogo contém erros");
         } else {
             System.out.println("O jogo não contém erros");
@@ -143,7 +132,7 @@ public class Main {
     }
 
     private static void clearGame() {
-        if (isNull(board)){
+        if (isNull(boardService)){
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
@@ -156,31 +145,30 @@ public class Main {
         }
 
         if(confirm.equalsIgnoreCase("sim")){
-            board.reset();
+            boardService.reset();
         }
     }
 
     private static void finishGame() {
-        if (isNull(board)){
+        if (isNull(boardService)) {
             System.out.println("O jogo ainda não foi iniciado iniciado");
             return;
         }
 
-        if (board.gameIsFinished()){
+        if (boardService.gameIsFinished()) {
             System.out.println("Parabéns você concluiu o jogo");
             showCurrentGame();
-            board = null;
-        } else if (board.hasErrors()) {
+            boardService = null;
+        } else if (boardService.hasErrors()) {
             System.out.println("Seu jogo conté, erros, verifique seu board e ajuste-o");
         } else {
             System.out.println("Você ainda precisa preenhcer algum espaço");
         }
     }
 
-
-    private static int runUntilGetValidNumber(final int min, final int max){
+    private static int runUntilGetValidNumber(final int min, final int max) {
         var current = scanner.nextInt();
-        while (current < min || current > max){
+        while (current < min || current > max) {
             System.out.printf("Informe um número entre %s e %s\n", min, max);
             current = scanner.nextInt();
         }
